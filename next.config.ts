@@ -1,10 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  devIndicators: {
-    buildActivity: true,
-    buildActivityPosition: "bottom-right",
-  },
+  // Убрано buildActivity (не поддерживается в новой версии Next.js)
   experimental: {
     serverActions: {
       bodySizeLimit: "2mb",
