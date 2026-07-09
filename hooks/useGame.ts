@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Game, GameState, Player, Question } from '@/lib/types';
 
 // Тестовые данные
@@ -49,8 +49,6 @@ const mockQuestions: Question[] = [
   }
 ];
 
-const mockPlayers: Player[] = []; // Пустой массив - без тестовых игроков
-
 const mockGame: Game = {
   id: '00000000-0000-0000-0000-000000000302',
   code: '302',
@@ -68,36 +66,118 @@ const mockGameState: GameState = {
   updated_at: new Date().toISOString()
 };
 
-// Глобальное состояние для эмуляции realtime
-let globalGameState = { ...mockGameState };
-let globalPlayers = [...mockPlayers];
+// Ключи для хранения в localStorage
+const STORAGE_KEYS = {
+  PLAYERS: 'quiz302_players',
+  GAME_STATE: 'quiz302_game_state'
+};
+
+// BroadcastChannel для синхронизации между вкладками
+const channel = typeof BroadcastChannel !== 'undefined'
+  ? new BroadcastChannel('quiz302_updates')
+  : null;
+
+// Функции для работы с localStorage
+const getStoredPlayers = (): Player[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const stored = localStorage.getItem(STORAGE_KEYS.PLAYERS);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+};
+
+const getStoredGameState = (): GameState => {
+  if (typeof window === 'undefined') return mockGameState;
+  try {
+    const stored = localStorage.getItem(STORAGE_KEYS.GAME_STATE);
+    return stored ? JSON.parse(stored) : mockGameState;
+  } catch {
+    return mockGameState;
+  }
+};
+
+const savePlayers = (players: Player[]) => {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
+  channel?.postMessage({ type: 'players_updated', players });
+};
+
+const saveGameState = (gameState: GameState) => {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(STORAGE_KEYS.GAME_STATE, JSON.stringify(gameState));
+  channel?.postMessage({ type: 'game_state_updated', gameState });
+};
 
 export function useGame(gameId: string) {
   const [game, setGame] = useState<Game | null>(mockGame);
-  const [gameState, setGameState] = useState<GameState | null>(globalGameState);
-  const [players, setPlayers] = useState<Player[]>(globalPlayers);
-  const [questions, setQuestions] = useState<Question[]>(mockQuestions);
+  const [gameState, setGameState] = useState<GameState>(() => getStoredGameState());
+  const [players, setPlayers] = useState<Player[]>(() => getStoredPlayers());
+  const [questions] = useState<Question[]>(mockQuestions);
   const [loading, setLoading] = useState(false);
 
-  // Функции для управления состоянием игры
-  const updateGameStatus = (status: GameState['status']) => {
-    globalGameState = { ...globalGameState, status, updated_at: new Date().toISOString() };
-    setGameState({ ...globalGameState });
-  };
+  // Синхронизация состояния при изменениях в других вкладках
+  useEffect(() => {
+    if (!channel) return;
 
-  const nextQuestion = () => {
-    const newIndex = (globalGameState.current_question_index + 1) % questions.length;
-    globalGameState = { ...globalGameState, current_question_index: newIndex, status: 'playing', updated_at: new Date().toISOString() };
-    setGameState({ ...globalGameState });
-  };
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data.type === 'players_updated') {
+        setPlayers(event.data.players);
+      } else if (event.data.type === 'game_state_updated') {
+        setGameState(event.data.gameState);
+      }
+    };
 
-  const prevQuestion = () => {
-    const newIndex = Math.max(0, globalGameState.current_question_index - 1);
-    globalGameState = { ...globalGameState, current_question_index: newIndex, updated_at: new Date().toISOString() };
-    setGameState({ ...globalGameState });
-  };
+    channel.addEventListener('message', handleMessage);
 
-  const addPlayer = (name: string) => {
+    // Также слушаем изменения в localStorage для более надежной синхронизации
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEYS.PLAYERS && e.newValue) {
+        setPlayers(JSON.parse(e.newValue));
+      } else if (e.key === STORAGE_KEYS.GAME_STATE && e.newValue) {
+        setGameState(JSON.parse(e.newValue));
+      }
+    };
+
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      channel.removeEventListener('message', handleMessage);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, []);
+
+  const updateGameStatus = useCallback((status: GameState['status']) => {
+    const newState: GameState = { ...gameState, status, updated_at: new Date().toISOString() };
+    setGameState(newState);
+    saveGameState(newState);
+  }, [gameState]);
+
+  const nextQuestion = useCallback(() => {
+    const newIndex = (gameState.current_question_index + 1) % questions.length;
+    const newState: GameState = { 
+      ...gameState, 
+      current_question_index: newIndex, 
+      status: 'playing', 
+      updated_at: new Date().toISOString() 
+    };
+    setGameState(newState);
+    saveGameState(newState);
+  }, [gameState, questions.length]);
+
+  const prevQuestion = useCallback(() => {
+    const newIndex = Math.max(0, gameState.current_question_index - 1);
+    const newState: GameState = { 
+      ...gameState, 
+      current_question_index: newIndex, 
+      updated_at: new Date().toISOString() 
+    };
+    setGameState(newState);
+    saveGameState(newState);
+  }, [gameState]);
+
+  const addPlayer = useCallback((name: string) => {
     const newPlayer: Player = {
       id: Date.now().toString(),
       game_id: gameId,
@@ -108,31 +188,35 @@ export function useGame(gameId: string) {
       last_seen_at: new Date().toISOString(),
       is_admin: false
     };
-    globalPlayers = [...globalPlayers, newPlayer];
-    setPlayers([...globalPlayers]);
-  };
+    const newPlayers = [...players, newPlayer];
+    setPlayers(newPlayers);
+    savePlayers(newPlayers);
+  }, [players, gameId]);
 
-  const removePlayer = (playerId: string) => {
-    globalPlayers = globalPlayers.filter(p => p.id !== playerId);
-    setPlayers([...globalPlayers]);
-  };
+  const removePlayer = useCallback((playerId: string) => {
+    const newPlayers = players.filter(p => p.id !== playerId);
+    setPlayers(newPlayers);
+    savePlayers(newPlayers);
+  }, [players]);
 
-  const resetGame = () => {
-    globalGameState = { ...mockGameState };
-    globalPlayers = [...mockPlayers];
-    setGameState({ ...globalGameState });
-    setPlayers([...globalPlayers]);
-  };
+  const resetGame = useCallback(() => {
+    saveGameState(mockGameState);
+    savePlayers([]);
+    setGameState(mockGameState);
+    setPlayers([]);
+  }, []);
 
-  const showLeaderboard = () => {
-    globalGameState = { ...globalGameState, status: 'leaderboard', updated_at: new Date().toISOString() };
-    setGameState({ ...globalGameState });
-  };
+  const showLeaderboard = useCallback(() => {
+    const newState: GameState = { ...gameState, status: 'leaderboard', updated_at: new Date().toISOString() };
+    setGameState(newState);
+    saveGameState(newState);
+  }, [gameState]);
 
-  const finishGame = () => {
-    globalGameState = { ...globalGameState, status: 'finished', updated_at: new Date().toISOString() };
-    setGameState({ ...globalGameState });
-  };
+  const finishGame = useCallback(() => {
+    const newState: GameState = { ...gameState, status: 'finished', updated_at: new Date().toISOString() };
+    setGameState(newState);
+    saveGameState(newState);
+  }, [gameState]);
 
   return { 
     game, 
