@@ -2,19 +2,11 @@
 
 import { motion } from 'framer-motion';
 import { useGame } from '@/hooks/useGame';
-import { GameStatus } from '@/lib/types';
 
 export default function HostPage() {
   const gameId = '00000000-0000-0000-0000-000000000302';
-  const { game, gameState, players, loading } = useGame(gameId);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
-        <div className="text-white text-2xl">Загрузка...</div>
-      </div>
-    );
-  }
+  const { gameState, players, questions } = useGame(gameId);
+  const currentQuestion = questions[gameState?.current_question_index || 0];
 
   const renderContent = () => {
     switch (gameState?.status) {
@@ -69,15 +61,34 @@ export default function HostPage() {
               animate={{ opacity: 1, scale: 1 }}
               className="text-5xl font-bold text-white mb-4"
             >
-              Вопрос {gameState?.current_question_index + 1}
+              Вопрос {gameState.current_question_index + 1}
             </motion.h1>
-            <div className="mt-12 text-gray-400 text-2xl">
-              Здесь будет вопрос
+            <motion.h2
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.2 }}
+              className="text-4xl font-bold bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent mt-8 mb-12"
+            >
+              {currentQuestion?.text}
+            </motion.h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl mx-auto">
+              {currentQuestion?.options?.map((option, index) => (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.15 }}
+                  className="bg-gray-800 rounded-xl p-6 border-2 border-gray-700"
+                >
+                  <div className="text-2xl font-semibold text-white">{option}</div>
+                </motion.div>
+              ))}
             </div>
           </div>
         );
 
       case 'leaderboard':
+        const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
         return (
           <div className="text-center">
             <motion.h1
@@ -88,33 +99,30 @@ export default function HostPage() {
               🏆 Лидеры
             </motion.h1>
             <div className="max-w-2xl mx-auto">
-              {players
-                .sort((a, b) => b.score - a.score)
-                .slice(0, 10)
-                .map((player, index) => (
-                  <motion.div
-                    key={player.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="bg-gray-800 rounded-xl p-6 mb-4 border border-gray-700 flex items-center justify-between"
-                  >
-                    <div className="flex items-center gap-4">
-                      <span className={`text-3xl font-bold ${index === 0 ? 'text-yellow-400' : index === 1 ? 'text-gray-300' : index === 2 ? 'text-orange-400' : 'text-gray-500'}`}>
-                        {index + 1}
-                      </span>
-                      <span className="text-2xl font-semibold text-white">{player.name}</span>
-                    </div>
-                    <span className="text-3xl font-bold text-purple-400">{player.score}</span>
-                  </motion.div>
-                ))}
+              {sortedPlayers.slice(0, 10).map((player, index) => (
+                <motion.div
+                  key={player.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  className="bg-gray-800 rounded-xl p-6 mb-4 border border-gray-700 flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-4">
+                    <span className={`text-3xl font-bold ${index === 0 ? 'text-yellow-400' : index === 1 ? 'text-gray-300' : index === 2 ? 'text-orange-400' : 'text-gray-500'}`}>
+                      {index + 1}
+                    </span>
+                    <span className="text-2xl font-semibold text-white">{player.name}</span>
+                  </div>
+                  <span className="text-3xl font-bold text-purple-400">{player.score}</span>
+                </motion.div>
+              ))}
             </div>
           </div>
         );
 
       case 'finished':
-        const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
-        const winner = sortedPlayers[0];
+        const finalSortedPlayers = [...players].sort((a, b) => b.score - a.score);
+        const winner = finalSortedPlayers[0];
         
         return (
           <div className="text-center">
@@ -123,8 +131,8 @@ export default function HostPage() {
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.5, type: 'spring' }}
             >
-              <h1 className="text-7xl font-bold mb-8">🏆</h1>
-              <h2 className="text-5xl font-bold bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent mb-4">
+              <h1 className="text-6xl mb-4">🏆</h1>
+              <h2 className="text-4xl font-bold bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent mb-4">
                 Победитель!
               </h2>
               {winner && (
@@ -136,7 +144,7 @@ export default function HostPage() {
 
             <div className="max-w-3xl mx-auto">
               <h3 className="text-3xl font-bold text-white mb-8">Топ-10</h3>
-              {sortedPlayers.slice(0, 10).map((player, index) => (
+              {finalSortedPlayers.slice(0, 10).map((player, index) => (
                 <motion.div
                   key={player.id}
                   initial={{ opacity: 0, y: 20 }}

@@ -1,84 +1,27 @@
 'use client';
 
-import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useGame } from '@/hooks/useGame';
-import { supabase } from '@/lib/supabase';
-import { GameStatus } from '@/lib/types';
-import { Play, SkipBack, SkipForward, Trophy, RotateCcw, UserMinus, PowerOff, ExternalLink } from 'lucide-react';
+import { Play, SkipBack, SkipForward, Trophy, RotateCcw, UserMinus, ExternalLink } from 'lucide-react';
 
 export default function AdminPage() {
   const gameId = '00000000-0000-0000-0000-000000000302';
-  const { game, gameState, players, loading } = useGame(gameId);
-
-  const ensureGameExists = async () => {
-    const { data: existingGame } = await supabase.from('games').select('*').eq('id', gameId).single();
-    
-    if (!existingGame) {
-      await supabase.from('games').insert([
-        { id: gameId, code: '302', status: 'waiting', current_question_index: 0 }
-      ]);
-      await supabase.from('game_state').insert([
-        { game_id: gameId, current_question_index: 0, status: 'waiting' }
-      ]);
-    }
-  };
-
-  const updateGameStatus = async (status: GameStatus) => {
-    await ensureGameExists();
-    await supabase.from('game_state').update({ status, updated_at: new Date().toISOString() }).eq('game_id', gameId);
-    await supabase.from('games').update({ status, updated_at: new Date().toISOString() }).eq('id', gameId);
-  };
-
-  const nextQuestion = async () => {
-    if (!gameState) return;
-    const newIndex = gameState.current_question_index + 1;
-    await supabase.from('game_state').update({ 
-      current_question_index: newIndex, 
-      status: 'playing', 
-      updated_at: new Date().toISOString() 
-    }).eq('game_id', gameId);
-  };
-
-  const prevQuestion = async () => {
-    if (!gameState) return;
-    const newIndex = Math.max(0, gameState.current_question_index - 1);
-    await supabase.from('game_state').update({ 
-      current_question_index: newIndex, 
-      updated_at: new Date().toISOString() 
-    }).eq('game_id', gameId);
-  };
-
-  const resetGame = async () => {
-    await ensureGameExists();
-    await supabase.from('players').delete().eq('game_id', gameId);
-    await supabase.from('game_state').update({ 
-      current_question_index: 0, 
-      status: 'waiting', 
-      updated_at: new Date().toISOString() 
-    }).eq('game_id', gameId);
-    await supabase.from('games').update({ 
-      status: 'waiting', 
-      current_question_index: 0, 
-      updated_at: new Date().toISOString() 
-    }).eq('id', gameId);
-  };
-
-  const removePlayer = async (playerId: string) => {
-    await supabase.from('players').delete().eq('id', playerId);
-  };
+  const { 
+    gameState, 
+    players, 
+    loading, 
+    updateGameStatus, 
+    nextQuestion, 
+    prevQuestion, 
+    resetGame, 
+    removePlayer,
+    showLeaderboard,
+    finishGame
+  } = useGame(gameId);
 
   const openHostScreen = () => {
     window.open('/host', '_blank');
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
-        <div className="text-white text-xl">Загрузка...</div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gray-900 p-6">
@@ -107,9 +50,6 @@ export default function AdminPage() {
                       </div>
                       <div className="text-gray-400 text-sm mt-1">
                         Баллы: {player.score}
-                      </div>
-                      <div className="text-gray-500 text-xs mt-1">
-                        {new Date(player.joined_at).toLocaleTimeString()}
                       </div>
                     </div>
                     <div className="flex gap-2 ml-4">
@@ -144,7 +84,7 @@ export default function AdminPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-gray-400">Текущий вопрос:</span>
-                  <span className="text-white font-semibold">{(gameState?.current_question_index ?? 0) + 1}</span>
+                  <span className="text-white font-semibold">{(gameState?.current_question_index || 0) + 1}</span>
                 </div>
               </div>
 
@@ -174,11 +114,11 @@ export default function AdminPage() {
                 </button>
 
                 <button
-                  onClick={() => updateGameStatus('finished')}
-                  className="flex flex-col items-center gap-2 p-4 bg-red-600 hover:bg-red-700 text-white rounded-xl transition-all transform hover:scale-[1.02]"
+                  onClick={showLeaderboard}
+                  className="flex flex-col items-center gap-2 p-4 bg-yellow-600 hover:bg-yellow-700 text-white rounded-xl transition-all transform hover:scale-[1.02]"
                 >
                   <Trophy size={24} />
-                  <span className="font-semibold">Завершить</span>
+                  <span className="font-semibold">Лидеры</span>
                 </button>
               </div>
 
@@ -197,6 +137,14 @@ export default function AdminPage() {
                 >
                   <ExternalLink size={20} />
                   <span className="font-semibold">Экран ведущего</span>
+                </button>
+
+                <button
+                  onClick={finishGame}
+                  className="flex items-center justify-center gap-2 p-4 bg-red-600 hover:bg-red-700 text-white rounded-xl transition-all"
+                >
+                  <Trophy size={20} />
+                  <span className="font-semibold">Завершить</span>
                 </button>
               </div>
             </motion.div>

@@ -4,37 +4,36 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useGame } from '@/hooks/useGame';
-import { supabase } from '@/lib/supabase';
-import { GameStatus } from '@/lib/types';
 
 export default function PlayerPage() {
   const router = useRouter();
-  const [playerId, setPlayerId] = useState<string | null>(null);
+  const [playerName, setPlayerName] = useState<string | null>(null);
+  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
+  const [answered, setAnswered] = useState(false);
   const gameId = '00000000-0000-0000-0000-000000000302';
-  const { game, gameState, players, loading } = useGame(gameId);
+  const { gameState, questions } = useGame(gameId);
 
   useEffect(() => {
-    const id = localStorage.getItem('playerId');
-    if (!id) {
+    const name = localStorage.getItem('playerName');
+    if (!name) {
       router.push('/');
       return;
     }
-    setPlayerId(id);
-
-    const updateLastSeen = setInterval(async () => {
-      await supabase.from('players').update({ last_seen_at: new Date().toISOString() }).eq('id', id);
-    }, 30000);
-
-    return () => clearInterval(updateLastSeen);
+    setPlayerName(name);
   }, [router]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
-        <div className="text-white text-xl">Загрузка...</div>
-      </div>
-    );
-  }
+  useEffect(() => {
+    setSelectedAnswer(null);
+    setAnswered(false);
+  }, [gameState?.current_question_index]);
+
+  const currentQuestion = questions[gameState?.current_question_index || 0];
+
+  const handleAnswer = (answer: string) => {
+    if (answered) return;
+    setSelectedAnswer(answer);
+    setAnswered(true);
+  };
 
   const renderContent = () => {
     switch (gameState?.status) {
@@ -42,8 +41,8 @@ export default function PlayerPage() {
         return (
           <div className="text-center">
             <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
             >
               <h2 className="text-3xl font-bold text-white mb-4">Ожидайте начала игры</h2>
@@ -64,37 +63,112 @@ export default function PlayerPage() {
                   className="w-3 h-3 bg-purple-500 rounded-full"
                 />
               </div>
-              <p className="text-gray-400 mt-8">Игроков подключено: {players.length}</p>
             </motion.div>
           </div>
         );
+
       case 'playing':
         return (
-          <div className="text-center">
-          <h2 className="text-3xl font-bold text-white mb-4">Игра началась!</h2>
-          <p className="text-gray-400">Здесь будет вопрос</p>
-        </div>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.3 }}
+            className="w-full"
+          >
+            <div className="text-center mb-8">
+              <span className="text-gray-400 text-lg">Вопрос {gameState.current_question_index + 1}</span>
+            </div>
+            
+            <h2 className="text-2xl md:text-3xl font-bold text-white text-center mb-8">
+              {currentQuestion?.text}
+            </h2>
+
+            <div className="grid gap-4">
+              {currentQuestion?.options?.map((option, index) => {
+                const isSelected = selectedAnswer === option;
+                const isCorrect = currentQuestion.correct_answers?.includes(option);
+                let buttonClass = 'w-full py-4 px-6 rounded-xl text-lg font-semibold transition-all';
+                
+                if (answered) {
+                  if (isCorrect) {
+                    buttonClass += ' bg-green-600 text-white';
+                  } else if (isSelected) {
+                    buttonClass += ' bg-red-600 text-white';
+                  } else {
+                    buttonClass += ' bg-gray-700 text-gray-400';
+                  }
+                } else {
+                  buttonClass += isSelected 
+                    ? ' bg-purple-600 text-white transform scale-[1.02]' 
+                    : ' bg-gray-700 text-white hover:bg-gray-600';
+                }
+
+                return (
+                  <motion.button
+                    key={index}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    onClick={() => handleAnswer(option)}
+                    disabled={answered}
+                    className={buttonClass}
+                  >
+                    {option}
+                  </motion.button>
+                );
+              })}
+            </div>
+          </motion.div>
         );
+
       case 'leaderboard':
         return (
           <div className="text-center">
-          <h2 className="text-3xl font-bold text-white mb-4">Таблица лидеров</h2>
-        </div>
+            <motion.h2
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="text-4xl font-bold bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent mb-8"
+            >
+              🏆 Лидеры
+            </motion.h2>
+            <p className="text-gray-400">Таблица лидеров</p>
+          </div>
         );
+
       case 'finished':
         return (
           <div className="text-center">
-          <h2 className="text-3xl font-bold text-white mb-4">🏆 Игра завершена!</h2>
-        </div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5 }}
+            >
+              <h1 className="text-6xl mb-4">🎉</h1>
+              <h2 className="text-3xl font-bold text-white mb-4">Игра завершена!</h2>
+              <p className="text-gray-400">Спасибо за игру!</p>
+            </motion.div>
+          </div>
         );
+
       default:
         return null;
     }
   };
 
+  if (!playerName) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+        <div className="text-white text-xl">Загрузка...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
-      <div className="w-full max-w-2xl">
+      <div className="w-full max-w-xl">
+        <div className="text-center mb-6">
+          <span className="text-gray-400">Привет, {playerName}!</span>
+        </div>
         {renderContent()}
       </div>
     </div>

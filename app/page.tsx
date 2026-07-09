@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { supabase } from '@/lib/supabase';
+import { useGame } from '@/hooks/useGame';
 
 export default function Home() {
   const router = useRouter();
@@ -11,6 +11,7 @@ export default function Home() {
   const [playerName, setPlayerName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const { addPlayer } = useGame('00000000-0000-0000-0000-000000000302');
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,40 +25,19 @@ export default function Home() {
       }
 
       if (gameCode !== '302') {
-        throw new Error('Invalid game code');
+        throw new Error('Неверный код игры');
       }
 
-      const gameId = '00000000-0000-0000-0000-000000000302';
-      const { data: existingGame } = await supabase.from('games').select('*').eq('id', gameId).single();
-
-      if (!existingGame) {
-        const { error: gameError } = await supabase.from('games').insert([
-          { id: gameId, code: '302', status: 'waiting', current_question_index: 0 }
-        ]);
-        if (gameError) throw gameError;
-
-        const { error: stateError } = await supabase.from('game_state').insert([
-          { game_id: gameId, current_question_index: 0, status: 'waiting' }
-        ]);
-        if (stateError) throw stateError;
-      }
-
-      const { data: player, error: playerError } = await supabase.from('players').insert([
-        {
-          game_id: gameId,
-          name: playerName,
-          score: 0,
-          is_online: true,
-          is_admin: false
-        }
-      ]).select().single();
-
-      if (playerError) throw playerError;
-
-      localStorage.setItem('playerId', player.id);
+      // Добавляем игрока в общий список
+      const newPlayerId = Date.now().toString();
+      addPlayer(playerName);
+      
+      // Для теста без Supabase: сохраняем имя и переходим
+      localStorage.setItem('playerName', playerName);
+      localStorage.setItem('playerId', newPlayerId);
       router.push('/player');
     } catch (err: any) {
-      setError(err.message || 'Something went wrong');
+      setError(err.message || 'Что-то пошло не так');
     } finally {
       setLoading(false);
     }
