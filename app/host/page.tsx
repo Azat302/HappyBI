@@ -1,9 +1,12 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import { useRouter } from 'next/navigation';
+import { ArrowLeft } from 'lucide-react';
 import { useGame } from '@/hooks/useGame';
 
 export default function HostPage() {
+  const router = useRouter();
   const gameId = '00000000-0000-0000-0000-000000000302';
   const { gameState, players, questions } = useGame(gameId);
   const currentQuestion = questions[gameState?.current_question_index || 0];
@@ -171,8 +174,19 @@ export default function HostPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-8 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
-      <div className="w-full">
+    <div className="min-h-screen flex flex-col p-8 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+      {/* Кнопка назад */}
+      <div className="mb-6">
+        <button
+          onClick={() => router.push('/admin')}
+          className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-xl transition-all"
+        >
+          <ArrowLeft size={20} />
+          Назад к админке
+        </button>
+      </div>
+
+      <div className="flex-1 flex items-center justify-center w-full">
         {renderContent()}
       </div>
     </div>

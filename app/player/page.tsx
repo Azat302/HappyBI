@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
+import { ArrowLeft } from 'lucide-react';
 import { useGame } from '@/hooks/useGame';
 
 export default function PlayerPage() {
@@ -164,8 +165,23 @@ export default function PlayerPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
-      <div className="w-full max-w-xl">
+    <div className="min-h-screen flex flex-col items-center p-4 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+      {/* Кнопка назад */}
+      <div className="w-full max-w-xl mb-4">
+        <button
+          onClick={() => {
+            localStorage.removeItem('playerName');
+            localStorage.removeItem('playerId');
+            router.push('/');
+          }}
+          className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-xl transition-all"
+        >
+          <ArrowLeft size={20} />
+          Назад
+        </button>
+      </div>
+
+      <div className="w-full max-w-xl flex-1 flex flex-col justify-center">
         <div className="text-center mb-6">
           <span className="text-gray-400">Привет, {playerName}!</span>
         </div>

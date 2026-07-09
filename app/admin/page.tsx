@@ -1,10 +1,12 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import { useRouter } from 'next/navigation';
 import { useGame } from '@/hooks/useGame';
-import { Play, SkipBack, SkipForward, Trophy, RotateCcw, UserMinus, ExternalLink } from 'lucide-react';
+import { Play, SkipBack, SkipForward, Trophy, RotateCcw, UserMinus, ExternalLink, ArrowLeft } from 'lucide-react';
 
 export default function AdminPage() {
+  const router = useRouter();
   const gameId = '00000000-0000-0000-0000-000000000302';
   const { 
     gameState, 
@@ -25,6 +27,17 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-gray-900 p-6">
+      {/* Кнопка назад */}
+      <div className="max-w-7xl mx-auto mb-4">
+        <button
+          onClick={() => router.push('/')}
+          className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-xl transition-all"
+        >
+          <ArrowLeft size={20} />
+          Назад
+        </button>
+      </div>
+
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col lg:flex-row gap-6">
           <div className="lg:w-1/3">
